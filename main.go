@@ -136,8 +136,8 @@ func main() {
 	} else {
 		EACH = true
 	}
-	sendMessageUrl = "https://api.telegram.org/bot" + token + "/sendMessage"
-	editMessageUrl = "https://api.telegram.org/bot" + token + "/editMessageText"
+	sendMessageUrl = "https://p.ff11.tk/https://api.telegram.org/bot" + token + "/sendMessage"
+	editMessageUrl = "https://p.ff11.tk/https://api.telegram.org/bot" + token + "/editMessageText"
 	rand.Seed(time.Now().UnixNano())
 
 	sections := cfg.Sections()
