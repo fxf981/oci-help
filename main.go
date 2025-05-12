@@ -1,24 +1,24 @@
 /*
-  甲骨文云API文档
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/
+甲骨文云API文档
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/
 
-  实例:
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Instance/
-  VCN:
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Vcn/
-  Subnet:
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Subnet/
-  VNIC:
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Vnic/
-  VnicAttachment:
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/VnicAttachment/
-  私有IP
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/PrivateIp/
-  公共IP
-  https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/PublicIp/
+实例:
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Instance/
+VCN:
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Vcn/
+Subnet:
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Subnet/
+VNIC:
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/Vnic/
+VnicAttachment:
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/VnicAttachment/
+私有IP
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/PrivateIp/
+公共IP
+https://docs.oracle.com/en-us/iaas/api/#/en/iaas/20160918/PublicIp/
 
-  获取可用性域
-  https://docs.oracle.com/en-us/iaas/api/#/en/identity/20160918/AvailabilityDomain/ListAvailabilityDomains
+获取可用性域
+https://docs.oracle.com/en-us/iaas/api/#/en/identity/20160918/AvailabilityDomain/ListAvailabilityDomains
 */
 package main
 
@@ -2340,39 +2340,60 @@ func listBootVolumeAttachments(availabilityDomain, compartmentId, bootVolumeId *
 }
 
 func sendMessage(name, text string) (msg Message, err error) {
-	if token != "" && chat_id != "" {
+	if token == "" || chat_id == "" {
+		return
+	}
+
+	const maxRetries = 5
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
 		data := url.Values{
 			"parse_mode": {"Markdown"},
 			"chat_id":    {chat_id},
 			"text":       {"🔰*甲骨文通知* " + name + "\n" + text},
 		}
-		var req *http.Request
-		req, err = http.NewRequest(http.MethodPost, sendMessageUrl, strings.NewReader(data.Encode()))
-		if err != nil {
-			return
+
+		req, reqErr := http.NewRequest(http.MethodPost, sendMessageUrl, strings.NewReader(data.Encode()))
+		if reqErr != nil {
+			err = reqErr
+			continue
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 		client := common.BaseClient{HTTPClient: &http.Client{}}
 		setProxyOrNot(&client)
-		var resp *http.Response
-		resp, err = client.HTTPClient.Do(req)
-		if err != nil {
+
+		resp, respErr := client.HTTPClient.Do(req)
+		if respErr != nil {
+			err = respErr
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		body, readErr := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			err = readErr
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		unmarshalErr := json.Unmarshal(body, &msg)
+		if unmarshalErr != nil {
+			err = unmarshalErr
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if msg.OK {
+			err = nil
 			return
 		}
-		var body []byte
-		body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return
-		}
-		err = json.Unmarshal(body, &msg)
-		if err != nil {
-			return
-		}
-		if !msg.OK {
-			err = errors.New(msg.Description)
-			return
-		}
+
+		err = errors.New(msg.Description)
+		time.Sleep(1 * time.Second)
 	}
+
 	return
 }
 
